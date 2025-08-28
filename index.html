@@ -1,103 +1,112 @@
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="nl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Date‑Ideeën Generator – v3</title>
-  <meta name="description" content="Genereer originele Nederlandse date‑ideeën. Client‑side met transformers.js. ESM‑compatibel.">
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Date-Ideeën Generator</title>
+  <meta name="description" content="Genereer originele Nederlandse date-ideeën. 100% client-side met transformers.js (geen API-sleutel).">
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>.kbd{border:1px solid #CBD5E1;border-bottom-width:3px;border-radius:.5rem;padding:.1rem .4rem;background:#fff}</style>
+  <style>.kbd{border:1px solid #cbd5e1;border-bottom-width:3px;border-radius:.5rem;padding:.1rem .4rem;background:#fff}</style>
 </head>
-<body class="bg-rose-50/40 text-slate-900 min-h-screen">
-  <main class="max-w-3xl mx-auto p-6">
-    <header class="mb-6 text-center">
-      <h1 class="text-3xl font-bold tracking-tight">💕 Date‑Ideeën Generator</h1>
-      <p class="text-slate-600">Gratis, zonder API‑sleutel – draait 100% in je browser met <code>transformers.js</code>. Eerste run kan even laden.</p>
-      <p id="load-note" class="text-sm text-amber-800 bg-amber-100 border border-amber-200 rounded-md px-3 py-2 mt-3 hidden"></p>
-    </header>
+<body class="min-h-screen bg-rose-50 text-slate-900">
+  <main class="max-w-xl mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-2">💕 Date-Ideeën Generator</h1>
+    <p class="text-slate-600 mb-4">Gratis & zonder API-sleutel – draait volledig in je browser. Eerste run kan even laden.</p>
+    <p id="note" class="text-sm text-amber-800 bg-amber-100 border border-amber-200 rounded px-3 py-2 mb-4 hidden"></p>
 
-    <section class="bg-white border rounded-2xl shadow-sm p-5 mb-5">
-      <label class="block text-sm font-medium mb-2" for="thema">Thema / context (optioneel)</label>
-      <input id="thema" class="w-full border rounded-xl p-3 mb-4" placeholder="bijv. thuis, regenachtig, budget, verjaardag" />
+    <label class="block text-sm font-medium mb-1" for="thema">Thema (optioneel)</label>
+    <input id="thema" class="w-full border rounded p-2 mb-3" placeholder="bijv. thuis, regenachtig, budget, verjaardag" />
 
-      <div class="flex flex-wrap items-center gap-3">
-        <button id="gen-btn" class="px-4 py-2 rounded-2xl bg-rose-600 text-white hover:bg-rose-700">Genereer</button>
-        <button id="copy-btn" class="px-4 py-2 rounded-2xl bg-white border hover:shadow">📋 Kopieer</button>
-        <span class="text-xs text-slate-500">Tip: <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span></span>
-      </div>
-    </section>
+    <div class="flex gap-3 mb-3">
+      <button id="gen" class="px-4 py-2 rounded bg-rose-600 text-white hover:bg-rose-700">Genereer</button>
+      <button id="copy" class="px-4 py-2 rounded border bg-white hover:shadow">📋 Kopieer</button>
+      <span class="text-xs text-slate-500 self-center">Tip: <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span></span>
+    </div>
 
-    <section class="bg-white border rounded-2xl shadow-sm p-5">
-      <label class="block text-sm font-medium mb-2" for="output">Resultaat</label>
-      <textarea id="output" rows="14" class="w-full border rounded-xl p-3 font-mono"></textarea>
-      <div class="text-xs text-slate-500 mt-2">Model: <code>Xenova/flan-t5-small</code></div>
-    </section>
+    <label class="block text-sm font-medium mb-1" for="out">Resultaat</label>
+    <textarea id="out" rows="14" class="w-full border rounded p-3 font-mono"></textarea>
 
-    <footer class="text-xs text-slate-500 mt-6 text-center">
-      Builds: <a class="underline" href="https://github.com/xenova/transformers.js" target="_blank" rel="noreferrer">@xenova/transformers</a>. Geen tracking.
-    </footer>
+    <p class="text-xs text-slate-500 mt-2">Model: <code>Xenova/flan-t5-small</code> via <code>@xenova/transformers</code>.</p>
   </main>
 
-  <!-- Belangrijk: gebruik ESM import i.p.v. klassiek script om "Unexpected token export" te voorkomen -->
+  <!-- Gebruik ESM import; géén inline onclicks -->
   <script type="module">
     import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
 
-    const ui = (id) => document.getElementById(id);
+    const $ = (id) => document.getElementById(id);
     const state = { pipe: null, salt: 0 };
 
-    function setLoading(msg){ const n = ui('load-note'); if(msg){ n.textContent = msg; n.classList.remove('hidden'); } else { n.classList.add('hidden'); } }
-    function setBusy(is){ const b = ui('gen-btn'); b.disabled = is; b.textContent = is ? 'Bezig…' : 'Genereer'; }
-
-    async function getPipe(){
-      if(state.pipe) return state.pipe;
-      setLoading('Model laden… (eenmalig, 20–60s)');
-      try {
-        state.pipe = await pipeline('text2text-generation', 'Xenova/flan-t5-small', {
-          progress_callback: (p)=>{ if(p.progress){ setLoading(`Model laden… ${Math.round(p.progress*100)}%`); } }
-        });
-        setLoading('');
-        return state.pipe;
-      } catch (e) {
-        setLoading('');
-        throw e;
-      }
+    function setNote(msg) {
+      const n = $('note');
+      if (msg) { n.textContent = msg; n.classList.remove('hidden'); }
+      else { n.classList.add('hidden'); }
     }
 
-    function buildPrompt(){
-      const thema = (ui('thema').value || 'verrassing').trim();
+    async function getPipe() {
+      if (state.pipe) return state.pipe;
+      setNote('Model laden… (eenmalig 20–60s)');
+      state.pipe = await pipeline('text2text-generation', 'Xenova/flan-t5-small', {
+        progress_callback: (p) => {
+          if (p.progress) setNote('Model laden… ' + Math.round(p.progress * 100) + '%');
+        }
+      });
+      setNote('');
+      return state.pipe;
+    }
+
+    function buildPrompt() {
+      const thema = ($('thema').value || 'verrassing').trim();
       state.salt = (state.salt + 1) % 1000000;
-      return `Genereer 12 originele, goedkope date-ideeën als genummerde lijst (1., 2., …). Korte, concrete zinnen, max 18 woorden per idee. Variatie: thuis/buiten/creatief/actief/relaxed. Vermijd herhaling. Thema: ${thema}. Zaad:${state.salt}. Schrijf natuurlijk Nederlands. Gebruik geen markdown.`;
+      return (
+        'Genereer 12 originele, goedkope date-ideeën als genummerde lijst (1., 2., …). ' +
+        'Korte, concrete zinnen (max 18 woorden). Variatie: thuis/buiten/creatief/actief/relaxed. ' +
+        'Vermijd herhaling. Thema: ' + thema + '. Zaad:' + state.salt + '. ' +
+        'Schrijf natuurlijk Nederlands. Gebruik geen markdown.'
+      );
     }
 
-    async function generate(){
-      setBusy(true);
-      const out = ui('output'); out.value = '';
-      try{
+    async function generate() {
+      const btn = $('gen');
+      const out = $('out');
+      btn.disabled = true; btn.textContent = 'Bezig…';
+      out.value = '';
+      try {
         const pipe = await getPipe();
-        const prompt = buildPrompt();
-        const res = await pipe(prompt, { max_new_tokens: 220 });
-        const text = (res?.[0]?.generated_text || '').trim();
-        out.value = text || 'Geen output ontvangen. Probeer nogmaals of wijzig het thema.';
-      }catch(e){
+        const res = await pipe(buildPrompt(), { max_new_tokens: 220 });
+        out.value = (res?.[0]?.generated_text || '').trim() || 'Geen output ontvangen. Probeer nogmaals.';
+      } catch (e) {
         console.error(e);
-        const hint = (e?.message || '') + '\n\nTips:\n• Staat een adblocker of netwerkfilter cdn.jsdelivr.net/huggingface.co in de weg?\n• Probeer privévenster/andere browser of netwerk.';
-        alert('Er ging iets mis tijdens genereren. ' + hint);
-      }finally{
-        setBusy(false);
+        alert(
+          'Er ging iets mis tijdens genereren.\n\n' +
+          'Tips:\n' +
+          '• Staat een adblocker of netwerkfilter cdn.jsdelivr.net of huggingface.co te blokkeren?\n' +
+          '• Probeer een privévenster/andere browser of ander netwerk.'
+        );
+      } finally {
+        btn.disabled = false; btn.textContent = 'Genereer';
       }
     }
 
-    function copyOut(){ const t = ui('output'); t.select(); t.setSelectionRange(0, 99999); document.execCommand('copy'); }
+    async function copyOut() {
+      const t = $('out');
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(t.value);
+        } else {
+          t.select(); document.execCommand('copy');
+        }
+      } catch { /* negeer */ }
+    }
 
-    // Event listeners (geen inline onclick, zodat ESM werkt)
-    window.addEventListener('load', ()=>{
-      ui('gen-btn').addEventListener('click', generate);
-      ui('copy-btn').addEventListener('click', copyOut);
-      document.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ generate(); }});
+    // Events (geen inline handlers)
+    window.addEventListener('load', () => {
+      $('gen').addEventListener('click', generate);
+      $('copy').addEventListener('click', copyOut);
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate();
+      });
     });
   </script>
 </body>
 </html>
-
