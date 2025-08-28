@@ -1,112 +1,93 @@
+<script type="module">
+  import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
 
-<!doctype html>
-<html lang="nl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Date-Ideeën Generator</title>
-  <meta name="description" content="Genereer originele Nederlandse date-ideeën. 100% client-side met transformers.js (geen API-sleutel).">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>.kbd{border:1px solid #cbd5e1;border-bottom-width:3px;border-radius:.5rem;padding:.1rem .4rem;background:#fff}</style>
-</head>
-<body class="min-h-screen bg-rose-50 text-slate-900">
-  <main class="max-w-xl mx-auto p-6">
-    <h1 class="text-2xl font-bold mb-2">💕 Date-Ideeën Generator</h1>
-    <p class="text-slate-600 mb-4">Gratis & zonder API-sleutel – draait volledig in je browser. Eerste run kan even laden.</p>
-    <p id="note" class="text-sm text-amber-800 bg-amber-100 border border-amber-200 rounded px-3 py-2 mb-4 hidden"></p>
+  const $ = (id) => document.getElementById(id);
+  const state = { pipe: null, salt: 0 };
 
-    <label class="block text-sm font-medium mb-1" for="thema">Thema (optioneel)</label>
-    <input id="thema" class="w-full border rounded p-2 mb-3" placeholder="bijv. thuis, regenachtig, budget, verjaardag" />
+  const setNote = (m) => { const n=$('note'); if(m){ n.textContent=m; n.classList.remove('hidden'); } else n.classList.add('hidden'); };
+  const setErr  = (m) => { const e=$('err');  if(e){ if(m){ e.textContent=m; e.classList.remove('hidden'); } else e.classList.add('hidden'); } };
 
-    <div class="flex gap-3 mb-3">
-      <button id="gen" class="px-4 py-2 rounded bg-rose-600 text-white hover:bg-rose-700">Genereer</button>
-      <button id="copy" class="px-4 py-2 rounded border bg-white hover:shadow">📋 Kopieer</button>
-      <span class="text-xs text-slate-500 self-center">Tip: <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span></span>
-    </div>
-
-    <label class="block text-sm font-medium mb-1" for="out">Resultaat</label>
-    <textarea id="out" rows="14" class="w-full border rounded p-3 font-mono"></textarea>
-
-    <p class="text-xs text-slate-500 mt-2">Model: <code>Xenova/flan-t5-small</code> via <code>@xenova/transformers</code>.</p>
-  </main>
-
-  <!-- Gebruik ESM import; géén inline onclicks -->
-  <script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
-
-    const $ = (id) => document.getElementById(id);
-    const state = { pipe: null, salt: 0 };
-
-    function setNote(msg) {
-      const n = $('note');
-      if (msg) { n.textContent = msg; n.classList.remove('hidden'); }
-      else { n.classList.add('hidden'); }
-    }
-
-    async function getPipe() {
-      if (state.pipe) return state.pipe;
-      setNote('Model laden… (eenmalig 20–60s)');
-      state.pipe = await pipeline('text2text-generation', 'Xenova/flan-t5-small', {
-        progress_callback: (p) => {
-          if (p.progress) setNote('Model laden… ' + Math.round(p.progress * 100) + '%');
-        }
-      });
-      setNote('');
-      return state.pipe;
-    }
-
-    function buildPrompt() {
-      const thema = ($('thema').value || 'verrassing').trim();
-      state.salt = (state.salt + 1) % 1000000;
-      return (
-        'Genereer 12 originele, goedkope date-ideeën als genummerde lijst (1., 2., …). ' +
-        'Korte, concrete zinnen (max 18 woorden). Variatie: thuis/buiten/creatief/actief/relaxed. ' +
-        'Vermijd herhaling. Thema: ' + thema + '. Zaad:' + state.salt + '. ' +
-        'Schrijf natuurlijk Nederlands. Gebruik geen markdown.'
-      );
-    }
-
-    async function generate() {
-      const btn = $('gen');
-      const out = $('out');
-      btn.disabled = true; btn.textContent = 'Bezig…';
-      out.value = '';
-      try {
-        const pipe = await getPipe();
-        const res = await pipe(buildPrompt(), { max_new_tokens: 220 });
-        out.value = (res?.[0]?.generated_text || '').trim() || 'Geen output ontvangen. Probeer nogmaals.';
-      } catch (e) {
-        console.error(e);
-        alert(
-          'Er ging iets mis tijdens genereren.\n\n' +
-          'Tips:\n' +
-          '• Staat een adblocker of netwerkfilter cdn.jsdelivr.net of huggingface.co te blokkeren?\n' +
-          '• Probeer een privévenster/andere browser of ander netwerk.'
-        );
-      } finally {
-        btn.disabled = false; btn.textContent = 'Genereer';
-      }
-    }
-
-    async function copyOut() {
-      const t = $('out');
-      try {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(t.value);
-        } else {
-          t.select(); document.execCommand('copy');
-        }
-      } catch { /* negeer */ }
-    }
-
-    // Events (geen inline handlers)
-    window.addEventListener('load', () => {
-      $('gen').addEventListener('click', generate);
-      $('copy').addEventListener('click', copyOut);
-      document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate();
-      });
+  async function getPipe() {
+    if (state.pipe) return state.pipe;
+    setErr('');
+    setNote('Model laden… (eenmalig 20–60s)');
+    // FLAN-T5 is beter voor instructies dan mT5
+    state.pipe = await pipeline('text2text-generation', 'Xenova/flan-t5-small', {
+      progress_callback: (p) => { if (p.progress) setNote('Model laden… ' + Math.round(p.progress*100) + '%'); }
     });
-  </script>
-</body>
-</html>
+    setNote('');
+    return state.pipe;
+  }
+
+  function buildPrompt(simple = false) {
+    const thema = ($( 'thema').value || 'verrassing').trim();
+    state.salt = (state.salt + 1) % 1_000_000;
+
+    if (simple) {
+      // Back-up prompt: nog explicieter en korter
+      return `Write a numbered list (1-12) of short Dutch date ideas about: ${thema}. Each item max 14 words. Vary indoor/outdoor/creative/active/relaxed. Avoid repetition.`;
+    }
+
+    // Hoofdprompt voor NL
+    return (
+      'Schrijf in het Nederlands een genummerde lijst van 12 korte, originele en goedkope date-ideeën (1., 2., …). ' +
+      'Gebruik natuurlijke, concrete zinnen van maximaal 16 woorden. Variatie: thuis/buiten/creatief/actief/relaxed. ' +
+      'Vermijd herhaling. Thema: ' + thema + '. Zaad:' + state.salt + '.'
+    );
+  }
+
+  async function generateOnce(prompt) {
+    const pipe = await getPipe();
+    const res = await pipe(prompt, {
+      max_new_tokens: 256,
+      do_sample: true,
+      top_p: 0.95,
+      temperature: 0.9,
+      repetition_penalty: 1.1,
+      num_beams: 1,
+      // return_full_text is genegeerd voor seq2seq; opnemen schaadt niet
+      return_full_text: false
+    });
+    return (res?.[0]?.generated_text || '').trim();
+  }
+
+  async function generate() {
+    const btn = $('gen');
+    const out = $('out');
+    btn.disabled = true; btn.textContent = 'Bezig…';
+    setErr(''); out.value = '';
+
+    try {
+      // 1e poging (NL prompt)
+      let text = await generateOnce(buildPrompt(false));
+
+      // Als leeg of te kort → 2e poging met simpelere EN-instructie
+      if (!text || text.length < 30) {
+        text = await generateOnce(buildPrompt(true));
+      }
+
+      out.value = text || 'Nog steeds geen output. Probeer een ander thema of ververs de pagina (cache).';
+    } catch (e) {
+      console.error('Generate error:', e);
+      setErr('Er ging iets mis tijdens genereren. Mogelijk blokkeert je netwerk cdn.jsdelivr.net of huggingface.co.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Genereer';
+    }
+  }
+
+  async function copyOut() {
+    const t = $('out');
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(t.value);
+      } else { t.select(); document.execCommand('copy'); }
+    } catch {}
+  }
+
+  window.addEventListener('load', () => {
+    $('gen').addEventListener('click', generate);
+    $('copy').addEventListener('click', copyOut);
+    document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate(); });
+  });
+</script>
+
