@@ -2,189 +2,128 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Date‑Ideeën Generator – Gratis, client‑side</title>
-  <meta name="description" content="Genereer originele Nederlandse date‑ideeën. Werkt 100% in de browser met transformers.js (geen API‑sleutel). Ideaal voor GitHub Pages." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%92%9E%3C/text%3E%3C/svg%3E" />
+  <title>Date Ideeën Generator – Gratis AI Tool</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <script defer src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0" crossorigin="anonymous" onload="window.TRANSFORMERS_READY=true" onerror="window.TRANSFORMERS_ERROR=true"></script>
+  <script>
+    window.readyForAI = new Promise((resolve) => {
+      window.addEventListener('load', () => {
+        setTimeout(() => resolve(window), 0);
+      });
+    });
+
+    const state = { pipeline: null };
+
+    async function waitForTransformers(ms = 20000) {
+      const start = Date.now();
+      return new Promise((resolve, reject) => {
+        (function check(){
+          if (window.transformers && typeof window.transformers.pipeline === 'function') return resolve(window.transformers);
+          if (window.TRANSFORMERS_ERROR) return reject(new Error('transformers.js kon niet laden (CDN geblokkeerd of offline).'));
+          if (Date.now() - start > ms) return reject(new Error('Timeout: transformers.js niet beschikbaar.'));
+          requestAnimationFrame(check);
+        })();
+      });
+    }
+
+    async function ensurePipeline() {
+      if (state.pipeline) return state.pipeline;
+      const loadNote = document.getElementById('load-note');
+      loadNote.classList.remove('hidden');
+      loadNote.textContent = 'Model laden… dit kan 20–60s duren (eenmalig).';
+
+      try {
+        const { pipeline } = await waitForTransformers();
+        const pipe = await pipeline('text2text-generation', 'Xenova/t5-small', {
+          progress_callback: (p) => {
+            const pct = p.progress ? Math.round(p.progress * 100) : 0;
+            loadNote.textContent = `Model laden… ${pct}%`;
+          },
+        });
+        state.pipeline = pipe;
+        loadNote.classList.add('hidden');
+        return pipe;
+      } catch (err) {
+        loadNote.classList.add('hidden');
+        throw err;
+      }
+    }
+
+    function setBusy(isBusy) {
+      const btn = document.getElementById('run-btn');
+      btn.disabled = isBusy;
+      btn.textContent = isBusy ? 'Bezig…' : 'Genereer';
+    }
+
+    async function runTool() {
+      const thema = document.getElementById('input').value.trim() || 'verrassing';
+      const out = document.getElementById('output');
+      out.value = '';
+
+      setBusy(true);
+      try {
+        const pipe = await ensurePipeline();
+        const prompt = `Geef 10 originele, goedkope date-ideeën in het Nederlands. Thema: ${thema}. Formatteer als genummerde lijst met korte zinnen.`;
+        const outArr = await pipe(prompt, { max_new_tokens: 180 });
+        out.value = outArr[0].generated_text.trim();
+      } catch (e) {
+        console.error(e);
+        const loadNote = document.getElementById('load-note');
+        loadNote.classList.add('hidden');
+        const hint = e && e.message && e.message.includes('transformers.js')
+          ? '
+Tip: staat een adblocker of netwerkfilter aan dat cdn.jsdelivr.net of huggingface.co blokkeert? Probeer incognito of een andere browser/Wi‑Fi.'
+          : '';
+        alert('Er ging iets mis. ' + (e && e.message ? e.message : '') + hint);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function copyOutput() {
+      const out = document.getElementById('output');
+      out.select();
+      out.setSelectionRange(0, 99999);
+      document.execCommand('copy');
+      const badge = document.getElementById('copied');
+      badge.classList.remove('hidden');
+      setTimeout(() => badge.classList.add('hidden'), 1200);
+    }
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .kbd{border:1px solid #CBD5E1;border-bottom-width:3px;border-radius:.5rem;padding:.1rem .4rem;background:#fff}
-  </style>
 </head>
-<body class="bg-rose-50/40 text-slate-900 min-h-screen">
-  <main class="max-w-4xl mx-auto p-6">
-    <header class="mb-6">
-      <h1 class="text-3xl font-bold tracking-tight">💘 Date‑Ideeën Generator</h1>
-      <p class="text-slate-600">Gratis & zonder API‑sleutel. Alles draait lokaal met <code>transformers.js</code>. Eerste run kan ~30–60s laden; daarna gaat het sneller.</p>
-      <p id="load-note" class="text-sm text-amber-800 bg-amber-100 border border-amber-200 rounded-md px-3 py-2 mt-3 hidden"></p>
+<body class="bg-rose-50 text-slate-900 min-h-screen">
+  <main class="max-w-3xl mx-auto p-6">
+    <header class="mb-6 text-center">
+      <h1 class="text-3xl font-bold tracking-tight">💕 Date Ideeën Generator</h1>
+      <p class="text-slate-600">Draait 100% gratis in je browser met <code>transformers.js</code>. Geen API‑sleutel nodig.</p>
+      <p id="load-note" class="text-sm text-amber-700 bg-amber-100 border border-amber-200 rounded-md px-3 py-2 mt-3 hidden"></p>
     </header>
 
-    <section class="bg-white border rounded-2xl shadow-sm p-5 mb-5">
-      <div class="grid sm:grid-cols-2 gap-4 mb-4">
-        <div>
-          <label class="block text-sm font-medium mb-1">Thema / context (optioneel)</label>
-          <input id="thema" class="w-full border rounded-xl p-2" placeholder="bijv. regenachtig, budget, thuis, verjaardag, eerste date" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1">Locatie</label>
-          <select id="locatie" class="w-full border rounded-xl p-2">
-            <option value="maakt niet uit">Maakt niet uit</option>
-            <option>Thuis</option>
-            <option>Buiten</option>
-            <option>Binnen (uit)</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1">Sfeer</label>
-          <select id="sfeer" class="w-full border rounded-xl p-2">
-            <option>Romantisch</option>
-            <option>Creatief</option>
-            <option>Avontuurlijk</option>
-            <option>Chill</option>
-            <option>Actief</option>
-          </select>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-medium mb-1">Aantal ideeën</label>
-            <input id="aantal" type="number" min="5" max="40" value="12" class="w-full border rounded-xl p-2" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-1">Budget</label>
-            <select id="budget" class="w-full border rounded-xl p-2">
-              <option>Gratis</option>
-              <option>Laag</option>
-              <option>Middel</option>
-              <option>Hoog</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1">Duur</label>
-          <select id="duur" class="w-full border rounded-xl p-2">
-            <option>30 minuten</option>
-            <option>1–2 uur</option>
-            <option>Halve dag</option>
-            <option>Hele dag</option>
-            <option>Avond</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1">Weer (optioneel)</label>
-          <select id="weer" class="w-full border rounded-xl p-2">
-            <option value="maakt niet uit">Maakt niet uit</option>
-            <option>Zonnig</option>
-            <option>Regenachtig</option>
-            <option>Koud</option>
-            <option>Warm</option>
-          </select>
-        </div>
+    <div class="bg-white border rounded-2xl shadow-sm p-4">
+      <label class="block text-sm font-medium mb-2" for="input">Thema (optioneel)</label>
+      <input id="input" class="w-full border rounded-xl p-3 mb-4" placeholder="bijv. thuis, regenachtig weer" />
+
+      <div class="flex items-center gap-3 mb-4">
+        <button id="run-btn" onclick="runTool()" class="px-4 py-2 rounded-2xl bg-rose-600 text-white hover:bg-rose-500">Genereer</button>
+        <span class="text-xs text-slate-500">Eerste keer moet het model laden.</span>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3 mt-2">
-        <button id="gen-btn" class="px-4 py-2 rounded-2xl bg-rose-600 text-white hover:bg-rose-700">Genereer</button>
-        <button id="shuffle-btn" class="px-4 py-2 rounded-2xl bg-white border hover:shadow">🔀 Variatie</button>
-        <button id="copy-btn" class="px-4 py-2 rounded-2xl bg-white border hover:shadow">📋 Kopieer</button>
-        <button id="download-btn" class="px-4 py-2 rounded-2xl bg-white border hover:shadow">⬇️ Download .txt</button>
-        <span class="text-xs text-slate-500">Tip: <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> om te genereren.</span>
+      <label class="block text-sm font-medium mb-2" for="output">Uitvoer</label>
+      <textarea id="output" rows="12" class="w-full border rounded-xl p-3 font-mono"></textarea>
+
+      <div class="flex items-center gap-2 mt-3">
+        <button onclick="copyOutput()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border">Kopieer</button>
+        <span id="copied" class="text-xs text-green-700 hidden">Gekopieerd!</span>
       </div>
-    </section>
+    </div>
 
-    <section class="bg-white border rounded-2xl shadow-sm p-5">
-      <label class="block text-sm font-medium mb-2">Resultaat</label>
-      <textarea id="output" rows="14" class="w-full border rounded-xl p-3 font-mono"></textarea>
-    </section>
-
-    <footer class="text-xs text-slate-500 mt-6">
-      Werkt lokaal met <a class="underline" href="https://github.com/xenova/transformers.js" target="_blank" rel="noreferrer">@xenova/transformers</a>. Model: <code>Xenova/t5-small</code> (open‑weights). Geen tracking, geen cookies.
+    <footer class="text-xs text-slate-500 mt-6 text-center">
+      Gemaakt met <a class="underline" href="https://github.com/xenova/transformers.js" target="_blank" rel="noreferrer">transformers.js</a> en het model <code>Xenova/t5-small</code>.
     </footer>
   </main>
-
-  <script>
-    // Global state
-    const state = {pipe: null, lastPrompt: '', salt: 0};
-
-    function ui(id){return document.getElementById(id)}
-    function setLoading(msg){const n=ui('load-note'); if(msg){n.textContent=msg; n.classList.remove('hidden')} else {n.classList.add('hidden')}}
-
-    async function getPipe(){
-      if(state.pipe) return state.pipe;
-      setLoading('Model laden… (eerste keer kan even duren)');
-      const { pipeline } = await window.transformers;
-      state.pipe = await pipeline('text2text-generation', 'Xenova/t5-small', {
-        progress_callback: (p)=>{ if(p.progress){ setLoading(`Model laden… ${Math.round(p.progress*100)}%`) } }
-      });
-      setLoading('');
-      return state.pipe;
-    }
-
-    function buildPrompt(){
-      const n = Math.min(40, Math.max(5, parseInt(ui('aantal').value||'12',10)));
-      const thema = ui('thema').value.trim() || 'verrassing';
-      const locatie = ui('locatie').value;
-      const sfeer = ui('sfeer').value;
-      const budget = ui('budget').value;
-      const duur = ui('duur').value;
-      const weer = ui('weer').value;
-      const salt = state.salt;
-
-      return `Genereer ${n} originele Nederlandse date-ideeën als een genummerde lijst (1., 2., …).`+
-        ` Houd het praktisch en concreet. Geef per idee 1 korte zin (max 18 woorden).`+
-        ` Variatie: binnen/buiten, actief/creatief/relaxed. Vermijd herhaling.`+
-        ` Context: thema=${thema}; locatie=${locatie}; sfeer=${sfeer}; budget=${budget}; duur=${duur}; weer=${weer}.`+
-        ` Schrijf natuurlijk Nederlands. Gebruik geen markdown. Zaad:${salt}`;
-    }
-
-    async function generate(){
-      const btn = ui('gen-btn');
-      btn.disabled = true; btn.textContent = 'Bezig…';
-      try{
-        const pipe = await getPipe();
-        const prompt = buildPrompt();
-        state.lastPrompt = prompt;
-        const out = await pipe(prompt, { max_new_tokens: 220 });
-        ui('output').value = (out[0].generated_text||'').trim();
-        savePrefs();
-      }catch(e){
-        console.error(e); alert('Er ging iets mis tijdens genereren. Probeer opnieuw.');
-      }finally{ btn.disabled=false; btn.textContent='Genereer'; }
-    }
-
-    function shuffle(){ state.salt = (state.salt + 1) % 1000000; generate(); }
-
-    function copyOut(){ const t = ui('output'); t.select(); t.setSelectionRange(0, 99999); document.execCommand('copy'); }
-
-    function downloadTxt(){
-      const blob = new Blob([ui('output').value || ''], {type: 'text/plain'});
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'date-ideeen.txt'; a.click(); URL.revokeObjectURL(a.href);
-    }
-
-    function savePrefs(){
-      const prefs = {
-        thema: ui('thema').value, locatie: ui('locatie').value, sfeer: ui('sfeer').value,
-        aantal: ui('aantal').value, budget: ui('budget').value, duur: ui('duur').value, weer: ui('weer').value
-      };
-      localStorage.setItem('prefs-dategen', JSON.stringify(prefs));
-    }
-
-    function loadPrefs(){
-      try{ const p = JSON.parse(localStorage.getItem('prefs-dategen')||'{}');
-        if(!p) return;
-        ['thema','locatie','sfeer','aantal','budget','duur','weer'].forEach(k=>{ if(p[k]) ui(k).value = p[k]; });
-      }catch{ /* ignore */ }
-    }
-
-    window.addEventListener('load', ()=>{
-      loadPrefs();
-      document.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ generate(); }});
-      ui('gen-btn').addEventListener('click', generate);
-      ui('shuffle-btn').addEventListener('click', shuffle);
-      ui('copy-btn').addEventListener('click', copyOut);
-      ui('download-btn').addEventListener('click', downloadTxt);
-    });
-  </script>
 </body>
 </html>
+
